@@ -20,6 +20,9 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
     # =========================
     # CONFIGURAÇÕES
     # =========================
+    
+    # Imports locais para evitar erro se não estiverem no topo
+    import os
 
     # Definindo cor baseada no jogo com ternário
     allcolors = [[35, 35, 35]] if game_name == 'newcp' else [[0, 0, 0]]
@@ -32,8 +35,21 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
 
     TEMPO_CURVA = 1.0
     RESET_TIMEOUT = 2.0
+    
+    # Configuração do 'close.png'
+    path_close = os.path.join(os.path.dirname(__file__), "images", game_name, "close.png")
+    img_close = cv2.imread(path_close)
+    if img_close is None:
+        if debug: print(f"[AVISO] Imagem close.png não encontrada em: {path_close}")
+        
+    last_check_close = time.time()
+    CHECK_CLOSE_INTERVAL = 1.0  # Checa a cada 1 segundo para não pesar o loop
+    
+    # Só começa a procurar o botão close depois de X segundos
+    TIME_BEFORE_CHECK_CLOSE = 50 
+    game_start_time = time.time()
 
-    print("Iniciando loop de jogo...")
+    if debug: print("Iniciando loop de jogo...")
 
     while True:
         # Verifica se deve parar o loop inteiro (ex: tecla 'q' na visualização ou controle externo)
@@ -41,7 +57,44 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
         
         with ScreenshotOfOneMonitor(monitor=0, ascontiguousarray=False) as sct:
             frame = sct.screenshot_one_monitor()
-
+        
+        # =========================
+        # DETECÇÃO DO FIM DO JOGO (CLOSE)
+        # =========================
+        # Verifica periodicamente se o botão 'close' apareceu, mas SÓ APÓS 2 MINUTOS
+        current_time = time.time()
+        if (img_close is not None and 
+            (current_time - game_start_time > TIME_BEFORE_CHECK_CLOSE) and 
+            (current_time - last_check_close > CHECK_CLOSE_INTERVAL)):
+            
+            last_check_close = current_time
+            
+            # Match Template
+            # O frame pode ter alpha channel (BGRA), o template geralmente é BGR.
+            # Vamos garantir compatibilidade.
+            # Se frame for BGRA e template BGR, cv2.matchTemplate falha ou requer conversão.
+            pass_search = frame
+            # Remove canal alpha se existir no frame para busca
+            if frame.shape[2] == 4:
+                pass_search = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+                
+            res = cv2.matchTemplate(pass_search, img_close, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+            
+            if max_val >= 0.8: # Confiança
+                if debug: print(f"Fim de jogo detectado! (Confiança: {max_val:.2f})")
+                
+                # Clica no centro do botão close
+                h_close, w_close = img_close.shape[:2]
+                cx = max_loc[0] + w_close // 2
+                cy = max_loc[1] + h_close // 2
+                
+                pydirectinput.click(cx, cy)
+                
+                # Sleep solicitado de 0.5 antes de retornar (reiniciar)
+                time.sleep(0.5)
+                return # Sai da função, fazendo o bot reiniciar o ciclo
+                
         # Se a callback disser que não está ativo, apenas dorme e continua
         if active_check_callback and not active_check_callback():
             time.sleep(0.05)
@@ -165,6 +218,7 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
         if contador_placas >= 3 and placa_detectada:
             
             turn_needed = False
+            time.sleep(0.2)
             
             if detectado_dir:
                 if debug:
