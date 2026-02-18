@@ -170,8 +170,8 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
             h_small, w_small = small.shape[:2]
             
             # Define tamanho das zonas (ajuste conforme necessário)
-            zone_w = int(w_small * 0.15) # 15% da largura
-            zone_h = int(h_small * 0.20) # 20% da altura
+            zone_w = int(w_small * 0.05) # 5% da largura
+            zone_h = int(h_small * 0.10) # 10% da altura
             
             # Zona Esquerda (Centro 25% largura, 80% altura)
             cx_esq = int(w_small * 0.25)
