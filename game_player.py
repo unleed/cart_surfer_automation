@@ -32,14 +32,15 @@ def _disparar_manobra(fn, debug):
     threading.Thread(target=fn, kwargs={"debug": debug, "done_event": done_event}, daemon=True).start()
     return done_event
 
-def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
+def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_callback=None):
     """
     Executa o loop principal do jogo.
     
     Args:
         roi: Dicionário com coordenadas da ROI {'x': int, 'y': int, 'w': int, 'h': int}
         game_name: Nome do jogo ('journey' ou 'newcp') para definir cores.
-        debug: Se True, exibe logs e janela de visualização.
+        debug: Se True, exibe logs.
+        visualize: Se True, exibe janela de visualização.
         active_check_callback: Função que retorna True se o loop deve continuar processando frames.
     """
     
@@ -226,7 +227,7 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
         # =========================
         # VISUALIZAÇÃO
         # =========================
-        if debug:
+        if visualize:
             vis = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
             
             # Desenha retângulos das zonas na visualização

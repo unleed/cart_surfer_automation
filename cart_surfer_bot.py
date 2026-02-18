@@ -15,10 +15,12 @@ from game_player import run_game_loop
 parser = argparse.ArgumentParser(description="Cart Surfer Bot")
 parser.add_argument("-g", "--game", required=True, choices=["newcp", "journey"], help="Qual jogo vai rodar: newcp ou journey")
 parser.add_argument("-debug", "--debug", action="store_true", help="Ativar modo debug")
+parser.add_argument("-vis", "--visualize", action="store_true", help="Ativar janela de visualização")
 args = parser.parse_args()
 
 # DEBUG FLAG
 DEBUG = args.debug
+VISUALIZE = args.visualize
 GAME = args.game
 
 print(f"Iniciando bot para o jogo: {GAME}")
@@ -81,7 +83,7 @@ while True:
         if jogo_rodando:
             # Passamos uma função lambda que retorna o status de 'ativo'
             # para que o game_player saiba quando parar se o usuário desligar
-            run_game_loop(roi, game_name=GAME, debug=DEBUG, active_check_callback=lambda: ativo)
+            run_game_loop(roi, game_name=GAME, debug=DEBUG, visualize=VISUALIZE, active_check_callback=lambda: ativo)
             
             # Quando run_game_loop retorna, significa que o loop foi interrompido (ex: inativo)
             # ou o jogo acabou (ainda não implementado detecção de fim de jogo no loop)
