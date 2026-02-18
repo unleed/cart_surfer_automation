@@ -8,21 +8,29 @@ from fast_ctypes_screenshots import ScreenshotOfOneMonitor
 from locate_pixelcolor_cpppragma import search_colors
 from game_starter import find_and_click_with_retry
 
-def fazer_loop(debug=False, _done_event=None):
+def fazer_loop(debug=False, done_event=None):
     """Executa a manobra loop: baixo + espaço (roda em thread separada)."""
     if debug: print("[MANOBRA] Executando: LOOP (baixo + espaço)")
     keyboard.send("down")
     keyboard.send("space")
+    time.sleep(0.8) # Simula tempo da manobra
+    if done_event:
+        done_event.set()
 
-def fazer_360(debug=False, _done_event=None):
+def fazer_360(debug=False, done_event=None):
     """Executa a manobra 360: espaço + direita (roda em thread separada)."""
     if debug: print("[MANOBRA] Executando: 360 (espaço + direita)")
     keyboard.send("space")
     keyboard.send("right")
+    time.sleep(0.8) # Simula tempo da manobra
+    if done_event:
+        done_event.set()
 
 def _disparar_manobra(fn, debug):
     """Dispara uma função de manobra em thread daemon e retorna o Event de conclusão."""
-    threading.Thread(target=fn, kwargs={"debug": debug}, daemon=True).start()
+    done_event = threading.Event()
+    threading.Thread(target=fn, kwargs={"debug": debug, "done_event": done_event}, daemon=True).start()
+    return done_event
 
 def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
     """
@@ -58,7 +66,7 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
         return 1.1 if ultima_manobra == 'loop' else 1.0
 
     TEMPO_CURVA = 1.65
-    RESET_TIMEOUT = 2.0
+    RESET_TIMEOUT = 4.0
     
     # Configuração do 'close.png'
     path_close = os.path.join(os.path.dirname(__file__), "images", game_name, "close.png")
@@ -137,24 +145,12 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
             continue
             
         # =========================
-        # MANOBRAS (quando contador_placas == 0 e nenhuma placa visível)
-        # =========================
-        # Só dispara nova manobra se: a anterior já terminou E o cooldown passou
-        manobra_livre = (_manobra_done is None or _manobra_done.is_set())
-        cooldown_ok = (time.time() - tempo_ultima_manobra) >= cooldown_manobra()
-        if contador_placas == 0 and manobra_livre and cooldown_ok:
-            # Alterna entre loop e 360: faz a que NÃO foi feita por último
-            if ultima_manobra != '360':
-                ultima_manobra = '360'
-                _manobra_done = _disparar_manobra(fazer_360, debug)
-            else:
-                ultima_manobra = 'loop'
-                _manobra_done = _disparar_manobra(fazer_loop, debug)
-            tempo_ultima_manobra = time.time()
-
-        # =========================
         # DETECÇÃO DE PLACAS (só executa se close detection não estiver ativa)
         # =========================
+        detectado_esq = False
+        detectado_dir = False
+        placa_detectada = False
+
         if not close_detection_active:
             # Recorta apenas a área do ROI
             x, y, w, h = roi["x"], roi["y"], roi["w"], roi["h"]
@@ -253,38 +249,56 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
 
             placa_visivel_anterior = placa_detectada
 
-            if time.time() - tempo_ultima_placa > RESET_TIMEOUT:
-                if contador_placas != 0:
-                    if debug:
-                        print("Resetando contador")
-                contador_placas = 0
-                ultima_posicao_x = None
+        if time.time() - tempo_ultima_placa > RESET_TIMEOUT:
+            if contador_placas != 0:
+                if debug:
+                    print("Resetando contador")
+            contador_placas = 0
+            ultima_posicao_x = None
 
-            # =========================
-            # VIRAR APENAS NA 3ª
-            # =========================
-            if contador_placas >= 3:
+        # =========================
+        # MANOBRAS (quando contador_placas == 0 e nenhuma placa visível)
+        # =========================
+        # Só dispara nova manobra se: a anterior já terminou E o cooldown passou
+        # E principalmente: se NÃO tem placa detectada neste exato frame
+        manobra_livre = (_manobra_done is None or _manobra_done.is_set())
+        cooldown_ok = (time.time() - tempo_ultima_manobra) >= cooldown_manobra()
+        
+        if contador_placas == 0 and not placa_detectada and manobra_livre and cooldown_ok:
+            # Alterna entre loop e 360: faz a que NÃO foi feita por último
+            if ultima_manobra != '360':
+                ultima_manobra = '360'
+                _manobra_done = _disparar_manobra(fazer_360, debug)
+            else:
+                ultima_manobra = 'loop'
+                _manobra_done = _disparar_manobra(fazer_loop, debug)
+            tempo_ultima_manobra = time.time()
+
+        # =========================
+        # VIRAR APENAS NA 3ª
+        # =========================
+        if contador_placas >= 3:
+            
+            turn_needed = False
+            
+            if detectado_dir:
+                if debug:
+                    print(f"DIREITA (Zona) -> ↩ VIRANDO ESQUERDA")
+                keyboard.press("down")
+                keyboard.press("left")
+                time.sleep(TEMPO_CURVA)
+                keyboard.release("left")
+                keyboard.release("down")
+                turn_needed = True
+            elif detectado_esq:
+                if debug:
+                    print(f"ESQUERDA (Zona) -> ↪ VIRANDO DIREITA")
+                keyboard.press("down")
+                keyboard.press("right")
+                time.sleep(TEMPO_CURVA)
+                keyboard.release("right")
+                keyboard.release("down")
+                turn_needed = True
                 
-                turn_needed = False
-                
-                if detectado_dir:
-                    if debug:
-                        print(f"DIREITA (Zona) -> ↩ VIRANDO ESQUERDA")
-                    keyboard.press("down")
-                    keyboard.press("left")
-                    time.sleep(TEMPO_CURVA)
-                    keyboard.release("left")
-                    keyboard.release("down")
-                    turn_needed = True
-                elif detectado_esq:
-                    if debug:
-                        print(f"ESQUERDA (Zona) -> ↪ VIRANDO DIREITA")
-                    keyboard.press("down")
-                    keyboard.press("right")
-                    time.sleep(TEMPO_CURVA)
-                    keyboard.release("right")
-                    keyboard.release("down")
-                    turn_needed = True
-                    
-                if turn_needed:
-                    contador_placas = 0
+            if turn_needed:
+                contador_placas = 0
