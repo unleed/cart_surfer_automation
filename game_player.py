@@ -70,7 +70,7 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
     CHECK_CLOSE_INTERVAL = 1.0  # Checa a cada 1 segundo para não pesar o loop
     
     # Só começa a procurar o botão close depois de X segundos
-    TIME_BEFORE_CHECK_CLOSE = 50
+    TIME_BEFORE_CHECK_CLOSE = 45
     game_start_time = time.time()
     close_detection_active = False  # Flag para indicar quando a detecção de close está ativa
 
