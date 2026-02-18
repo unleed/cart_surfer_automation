@@ -6,6 +6,7 @@ import cv2
 import keyboard
 from fast_ctypes_screenshots import ScreenshotOfOneMonitor
 from locate_pixelcolor_cpppragma import search_colors
+from game_starter import find_and_click_with_retry
 
 def fazer_loop(debug=False, _done_event=None):
     """Executa a manobra loop: baixo + espaço (roda em thread separada)."""
@@ -124,6 +125,17 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
                 cy = max_loc[1] + h_close // 2
                 
                 pydirectinput.click(cx, cy)
+
+                if game_name == 'newcp':
+                    # Configuração do 'shack.png'
+                    base_path = os.path.join(os.path.dirname(__file__), "images", game_name)
+                    img_shack = os.path.join(base_path, "shack.png")
+                    
+                    find_and_click_with_retry("Shack", img_shack, roi=roi, debug=debug)
+
+                    # Sleep solicitado de 5.0 antes de retornar (reiniciar)
+                    time.sleep(5.0)
+                    return
                 
                 # Sleep solicitado de 0.5 antes de retornar (reiniciar)
                 time.sleep(0.5)
