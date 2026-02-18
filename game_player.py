@@ -201,8 +201,8 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
             roi_dir = small[y1_dir:y2_dir, x1_dir:x2_dir]
 
             # Busca nas zonas
-            achou_esq = search_colors(pic=roi_esq, colors=bgrcolors, cpus=1)
-            achou_dir = search_colors(pic=roi_dir, colors=bgrcolors, cpus=1)
+            achou_esq = search_colors(pic=roi_esq, colors=bgrcolors, cpus=4)
+            achou_dir = search_colors(pic=roi_dir, colors=bgrcolors, cpus=4)
             
             detectado_esq = np.any(achou_esq)
             detectado_dir = np.any(achou_dir)
