@@ -1,10 +1,34 @@
 import numpy as np
 import time
+import threading
 import pydirectinput
 import cv2
 import keyboard
 from fast_ctypes_screenshots import ScreenshotOfOneMonitor
 from locate_pixelcolor_cpppragma import search_colors
+
+def fazer_loop(debug=False, _done_event=None):
+    """Executa a manobra loop: baixo + espaço (roda em thread separada)."""
+    if debug: print("[MANOBRA] Executando: LOOP (baixo + espaço)")
+    keyboard.send("down")
+    keyboard.send("space")
+    if _done_event:
+        _done_event.set()
+
+def fazer_360(debug=False, _done_event=None):
+    """Executa a manobra 360: espaço + direita (roda em thread separada)."""
+    if debug: print("[MANOBRA] Executando: 360 (espaço + direita)")
+    keyboard.send("space")
+    keyboard.send("right")
+    if _done_event:
+        _done_event.set()
+
+def _disparar_manobra(fn, debug):
+    """Dispara uma função de manobra em thread daemon e retorna o Event de conclusão."""
+    done = threading.Event()
+    t = threading.Thread(target=fn, kwargs={"debug": debug, "_done_event": done}, daemon=True)
+    t.start()
+    return done
 
 def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
     """
@@ -32,8 +56,12 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
     placa_visivel_anterior = False
     tempo_ultima_placa = time.time()
     ultima_posicao_x = None
+    ultima_manobra = None  # None, 'loop' ou '360' — controla alternância de manobras
+    _manobra_done = None   # Event que sinaliza quando a manobra em curso terminou
+    tempo_ultima_manobra = 0.0  # Timestamp da última manobra disparada
+    COOLDOWN_MANOBRA = 2.0 if ultima_manobra == 'loop' else 1.0  # Segundos de espera entre manobras
 
-    TEMPO_CURVA = 1.0
+    TEMPO_CURVA = 1.2
     RESET_TIMEOUT = 2.0
     
     # Configuração do 'close.png'
@@ -108,6 +136,22 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
             # Originalmente não fechava, mas parava de atualizar.
             # cv2.destroyAllWindows() # Opcional
             continue
+            
+        # =========================
+        # MANOBRAS (quando contador_placas == 0 e nenhuma placa visível)
+        # =========================
+        # Só dispara nova manobra se: a anterior já terminou E o cooldown passou
+        manobra_livre = (_manobra_done is None or _manobra_done.is_set())
+        cooldown_ok = (time.time() - tempo_ultima_manobra) >= COOLDOWN_MANOBRA
+        if contador_placas == 0 and manobra_livre and cooldown_ok:
+            # Alterna entre loop e 360: faz a que NÃO foi feita por último
+            if ultima_manobra != 'loop':
+                ultima_manobra = 'loop'
+                _manobra_done = _disparar_manobra(fazer_loop, debug)
+            else:
+                ultima_manobra = '360'
+                _manobra_done = _disparar_manobra(fazer_360, debug)
+            tempo_ultima_manobra = time.time()
 
         # =========================
         # DETECÇÃO DE PLACAS (só executa se close detection não estiver ativa)
