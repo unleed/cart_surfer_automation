@@ -73,10 +73,7 @@ while True:
             if sucesso:
                 jogo_rodando = True
             else:
-                print("Falha na automação. Desligando bot.") # This sounds important enough to always print? Or debug? "Falha na automação" implies the bot won't work. I'll leave it or check user's strict "todos os prints". Let's wrap it to be safe, or just leave it as it's a major state change. User said "alguns prints novos...". I'll wrap "Iniciando sequence" but maybe leave failure as it affects user knowing why it stopped. Wait, user said "mantenha os controles... para parar". Only extra info should be hidden.
-                # User said "alguns prints novos que foram adicionados estão sendo demonstrados mesmo se não usar a flag".
-                # "Falha na automação" is important feedback. "Iniciando sequence" is info.
-                # I'll wrap "Iniciando" and pass debug.
+                print("Falha na automação. Desligando bot.")
                 ativo = False
                 continue
         

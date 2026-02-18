@@ -13,23 +13,16 @@ def fazer_loop(debug=False, _done_event=None):
     if debug: print("[MANOBRA] Executando: LOOP (baixo + espaço)")
     keyboard.send("down")
     keyboard.send("space")
-    if _done_event:
-        _done_event.set()
 
 def fazer_360(debug=False, _done_event=None):
     """Executa a manobra 360: espaço + direita (roda em thread separada)."""
     if debug: print("[MANOBRA] Executando: 360 (espaço + direita)")
     keyboard.send("space")
     keyboard.send("right")
-    if _done_event:
-        _done_event.set()
 
 def _disparar_manobra(fn, debug):
     """Dispara uma função de manobra em thread daemon e retorna o Event de conclusão."""
-    done = threading.Event()
-    t = threading.Thread(target=fn, kwargs={"debug": debug, "_done_event": done}, daemon=True)
-    t.start()
-    return done
+    threading.Thread(target=fn, kwargs={"debug": debug}, daemon=True).start()
 
 def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
     """
@@ -60,9 +53,11 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
     ultima_manobra = None  # None, 'loop' ou '360' — controla alternância de manobras
     _manobra_done = None   # Event que sinaliza quando a manobra em curso terminou
     tempo_ultima_manobra = 0.0  # Timestamp da última manobra disparada
-    COOLDOWN_MANOBRA = 2.0 if ultima_manobra == 'loop' else 1.0  # Segundos de espera entre manobras
 
-    TEMPO_CURVA = 1.2
+    def cooldown_manobra():
+        return 1.1 if ultima_manobra == 'loop' else 1.0
+
+    TEMPO_CURVA = 1.65
     RESET_TIMEOUT = 2.0
     
     # Configuração do 'close.png'
@@ -75,23 +70,20 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
     CHECK_CLOSE_INTERVAL = 1.0  # Checa a cada 1 segundo para não pesar o loop
     
     # Só começa a procurar o botão close depois de X segundos
-    TIME_BEFORE_CHECK_CLOSE = 45
+    TIME_BEFORE_CHECK_CLOSE = 50
     game_start_time = time.time()
     close_detection_active = False  # Flag para indicar quando a detecção de close está ativa
 
     if debug: print("Iniciando loop de jogo...")
 
-    while True:
-        # Verifica se deve parar o loop inteiro (ex: tecla 'q' na visualização ou controle externo)
-        # Por enquanto, controlamos apenas o processamento via 'active_check_callback'
-        
+    while True:        
         with ScreenshotOfOneMonitor(monitor=0, ascontiguousarray=False) as sct:
             frame = sct.screenshot_one_monitor()
         
         # =========================
         # DETECÇÃO DO FIM DO JOGO (CLOSE)
         # =========================
-        # Verifica periodicamente se o botão 'close' apareceu, mas SÓ APÓS 2 MINUTOS
+        # Verifica periodicamente se o botão 'close' apareceu, mas SÓ APÓS {TIME_BEFORE_CHECK_CLOSE} SEGUNDOS
         current_time = time.time()
         if (img_close is not None and 
             (current_time - game_start_time > TIME_BEFORE_CHECK_CLOSE) and 
@@ -105,9 +97,6 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
             last_check_close = current_time
             
             # Match Template
-            # O frame pode ter alpha channel (BGRA), o template geralmente é BGR.
-            # Vamos garantir compatibilidade.
-            # Se frame for BGRA e template BGR, cv2.matchTemplate falha ou requer conversão.
             pass_search = frame
             # Remove canal alpha se existir no frame para busca
             if frame.shape[2] == 4:
@@ -144,9 +133,7 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
         # Se a callback disser que não está ativo, apenas dorme e continua
         if active_check_callback and not active_check_callback():
             time.sleep(0.05)
-            # Fecha janelas se estiverem abertas e o bot for pausado? 
-            # Originalmente não fechava, mas parava de atualizar.
-            # cv2.destroyAllWindows() # Opcional
+            # cv2.destroyAllWindows()
             continue
             
         # =========================
@@ -154,15 +141,15 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
         # =========================
         # Só dispara nova manobra se: a anterior já terminou E o cooldown passou
         manobra_livre = (_manobra_done is None or _manobra_done.is_set())
-        cooldown_ok = (time.time() - tempo_ultima_manobra) >= COOLDOWN_MANOBRA
+        cooldown_ok = (time.time() - tempo_ultima_manobra) >= cooldown_manobra()
         if contador_placas == 0 and manobra_livre and cooldown_ok:
             # Alterna entre loop e 360: faz a que NÃO foi feita por último
-            if ultima_manobra != 'loop':
-                ultima_manobra = 'loop'
-                _manobra_done = _disparar_manobra(fazer_loop, debug)
-            else:
+            if ultima_manobra != '360':
                 ultima_manobra = '360'
                 _manobra_done = _disparar_manobra(fazer_360, debug)
+            else:
+                ultima_manobra = 'loop'
+                _manobra_done = _disparar_manobra(fazer_loop, debug)
             tempo_ultima_manobra = time.time()
 
         # =========================
@@ -184,9 +171,9 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
             
             # Define tamanho das zonas (ajuste conforme necessário)
             zone_w = int(w_small * 0.15) # 15% da largura
-            zone_h = int(h_small * 0.20) # 20% da altura (reduzi um pouco a altura para focar mais)
+            zone_h = int(h_small * 0.20) # 20% da altura
             
-            # Zona Esquerda (Centro volta a 25% largura, mais p/ baixo 80% altura)
+            # Zona Esquerda (Centro 25% largura, 80% altura)
             cx_esq = int(w_small * 0.25)
             cy_esq = int(h_small * 0.80)
             x1_esq = cx_esq - zone_w // 2
@@ -194,7 +181,7 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
             x2_esq = cx_esq + zone_w // 2
             y2_esq = cy_esq + zone_h // 2
             
-            # Zona Direita (Centro volta a 75% largura, mais p/ baixo 80% altura)
+            # Zona Direita (Centro 75% largura, 80% altura)
             cx_dir = int(w_small * 0.75)
             cy_dir = int(h_small * 0.80)
             x1_dir = cx_dir - zone_w // 2
@@ -276,28 +263,27 @@ def run_game_loop(roi, game_name, debug=False, active_check_callback=None):
             # =========================
             # VIRAR APENAS NA 3ª
             # =========================
-            if contador_placas >= 3 and placa_detectada:
+            if contador_placas >= 3:
                 
                 turn_needed = False
-                time.sleep(0.25)
                 
                 if detectado_dir:
                     if debug:
                         print(f"DIREITA (Zona) -> ↩ VIRANDO ESQUERDA")
-                    pydirectinput.keyDown("down")
-                    pydirectinput.keyDown("left")
+                    keyboard.press("down")
+                    keyboard.press("left")
                     time.sleep(TEMPO_CURVA)
-                    pydirectinput.keyUp("left")
-                    pydirectinput.keyUp("down")
+                    keyboard.release("left")
+                    keyboard.release("down")
                     turn_needed = True
                 elif detectado_esq:
                     if debug:
                         print(f"ESQUERDA (Zona) -> ↪ VIRANDO DIREITA")
-                    pydirectinput.keyDown("down")
-                    pydirectinput.keyDown("right")
+                    keyboard.press("down")
+                    keyboard.press("right")
                     time.sleep(TEMPO_CURVA)
-                    pydirectinput.keyUp("right")
-                    pydirectinput.keyUp("down")
+                    keyboard.release("right")
+                    keyboard.release("down")
                     turn_needed = True
                     
                 if turn_needed:
