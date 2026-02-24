@@ -1,7 +1,8 @@
-import keyboard
+import sys
 import time
+import os
 import argparse
-from mousekey import MouseKey
+from pynput import keyboard
 
 # Import ROI
 from roi_selector import load_or_create_roi
@@ -27,9 +28,6 @@ print(f"Starting bot for game: {GAME}")
 # CONFIGURATIONS
 # =========================
 
-mkey = MouseKey()
-mkey.enable_failsafekill('ctrl+e')
-
 bot_active = False
 
 # =========================
@@ -48,12 +46,22 @@ def toggle_bot():
     bot_active = not bot_active
     print("\n🟢 BOT ON" if bot_active else "\n🔴 BOT OFF")
 
-keyboard.add_hotkey('ctrl+alt+s', toggle_bot)
+def exit_program():
+    print("\n[EMERGENCY] Exiting program...")
+    # Force kill since simple exit() won't stop other daemon threads properly
+    os._exit(0)
 
 print("=================================")
 print("CTRL+ALT+S -> Start / Stop")
 print("CTRL+E -> Emergency")
 print("=================================")
+
+# Setup global hotkeys using pynput
+listener = keyboard.GlobalHotKeys({
+    '<ctrl>+<alt>+s': toggle_bot,
+    '<ctrl>+e': exit_program
+})
+listener.start()
 
 # =========================
 # MAIN LOOP

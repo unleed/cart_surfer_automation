@@ -1,21 +1,25 @@
 import numpy as np
 import time
-import keyboard
-import pydirectinput
+import pyautogui
 import cv2
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import mss
+from pynput.keyboard import Controller, Key
 from game_starter import find_and_click_with_retry
+
+_kb = Controller()
 
 trick_executor = ThreadPoolExecutor(max_workers=2)
 
 def perform_loop(debug=False, done_event=None):
     """Executes loop trick: down + space (runs in separate thread)."""
     if debug: print("[TRICK] Executing: LOOP (down + space)")
-    keyboard.send("down")
-    keyboard.send("space")
+    _kb.press(Key.down)
+    _kb.release(Key.down)
+    _kb.press(Key.space)
+    _kb.release(Key.space)
     time.sleep(1.1) # Simulates trick time
     if done_event:
         done_event.set()
@@ -23,8 +27,10 @@ def perform_loop(debug=False, done_event=None):
 def perform_360(debug=False, done_event=None):
     """Executes 360 trick: space + right (runs in separate thread)."""
     if debug: print("[TRICK] Executing: 360 (space + right)")
-    keyboard.send("space")
-    keyboard.send("right")
+    _kb.press(Key.space)
+    _kb.release(Key.space)
+    _kb.press(Key.right)
+    _kb.release(Key.right)
     time.sleep(0.8) # Simulates trick time
     if done_event:
         done_event.set()
@@ -146,7 +152,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                     cx = x + max_loc[0] + w_close // 2 + int(w_f/4)
                     cy = y + max_loc[1] + h_close // 2
                     
-                    pydirectinput.click(cx, cy)
+                    pyautogui.click(cx, cy)
 
                     if game_name == 'newcp':
                         base_path = os.path.join(os.path.dirname(__file__), "images", game_name)
@@ -257,20 +263,20 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                 if detected_right:
                     if debug:
                         print(f"RIGHT (Zone) -> ↩ TURNING LEFT")
-                    keyboard.press("down")
-                    keyboard.press("left")
+                    _kb.press(Key.down)
+                    _kb.press(Key.left)
                     time.sleep(TURN_TIME)
-                    keyboard.release("left")
-                    keyboard.release("down")
+                    _kb.release(Key.left)
+                    _kb.release(Key.down)
                     turn_needed = True
                 elif detected_left:
                     if debug:
                         print(f"LEFT (Zone) -> ↪ TURNING RIGHT")
-                    keyboard.press("down")
-                    keyboard.press("right")
+                    _kb.press(Key.down)
+                    _kb.press(Key.right)
                     time.sleep(TURN_TIME)
-                    keyboard.release("right")
-                    keyboard.release("down")
+                    _kb.release(Key.right)
+                    _kb.release(Key.down)
                     turn_needed = True
                     
                 if turn_needed:

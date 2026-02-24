@@ -1,7 +1,5 @@
-keyboard
-mousekey
 mss
 numpy
-pydirectinput
 opencv-python
 pyautogui
+pynput
