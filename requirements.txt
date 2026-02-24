@@ -1,6 +1,6 @@
 keyboard
 mousekey
-fast_ctypes_screenshots
+mss
 numpy
 pydirectinput
 opencv-python

@@ -6,7 +6,7 @@ import cv2
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from fast_ctypes_screenshots import ScreenshotOfOneMonitor
+import mss
 from game_starter import find_and_click_with_retry
 
 trick_executor = ThreadPoolExecutor(max_workers=2)
@@ -105,10 +105,12 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     y2_dir = min(small_h, cy_dir + zone_h // 2)
 
     x, y, w, h = roi["x"], roi["y"], roi["w"], roi["h"]
+    monitor_roi = {"top": y, "left": x, "width": w, "height": h}
 
-    with ScreenshotOfOneMonitor(monitor=0, ascontiguousarray=False) as sct:
+    with mss.mss() as sct:
         while True:        
-            frame = sct.screenshot_one_monitor()
+            sct_img = sct.grab(monitor_roi)
+            frame_roi = np.array(sct_img)
             
             # =========================
             # GAME END DETECTION (CLOSE)
@@ -124,10 +126,10 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                 
                 last_check_close = current_time
                 
-                h_f, w_f = frame.shape[:2]
+                h_f, w_f = frame_roi.shape[:2]
                 
                 # Restrict search area to upper right (where buttons usually are)
-                search_area = frame[0:int(h_f/2), int(w_f/4):w_f]
+                search_area = frame_roi[0:int(h_f/2), int(w_f/4):w_f]
                 pass_search = search_area
                 
                 if pass_search.shape[2] == 4:
@@ -140,9 +142,9 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                     if debug: print(f"Game end detected! (Confidence: {max_val:.2f})")
                     
                     h_close, w_close = img_close.shape[:2]
-                    # Compensating X pos because we cut 1/4 left
-                    cx = max_loc[0] + w_close // 2 + int(w_f/4)
-                    cy = max_loc[1] + h_close // 2
+                    # Compensating X pos because we cut 1/4 left and we are inside the ROI bounds
+                    cx = x + max_loc[0] + w_close // 2 + int(w_f/4)
+                    cy = y + max_loc[1] + h_close // 2
                     
                     pydirectinput.click(cx, cy)
 
@@ -163,7 +165,6 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # =========================
             # SIGN DETECTION
             # =========================
-            frame_roi = frame[y:y+h, x:x+w]
             small = frame_roi[::2, ::2]
             small = small[0:int(small.shape[0]*0.6), :]
 
