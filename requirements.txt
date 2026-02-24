@@ -1,6 +1,5 @@
 keyboard
 mousekey
-locate-pixelcolor-cpppragma
 fast_ctypes_screenshots
 numpy
 pydirectinput
