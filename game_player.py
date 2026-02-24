@@ -16,7 +16,7 @@ def perform_loop(debug=False, done_event=None):
     if debug: print("[TRICK] Executing: LOOP (down + space)")
     keyboard.send("down")
     keyboard.send("space")
-    time.sleep(0.8) # Simulates trick time
+    time.sleep(1.1) # Simulates trick time
     if done_event:
         done_event.set()
 
@@ -60,12 +60,8 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     last_x_pos = None
     last_trick = None  # None, 'loop' or '360' — controls trick alternation
     _trick_done = None   # Event signaling when current trick finished
-    last_trick_time = 0.0  # Timestamp of last triggered trick
 
-    def trick_cooldown():
-        return 1.1 if last_trick == 'loop' else 1.0
-
-    TURN_TIME = 1.65
+    TURN_TIME = 1.64
     RESET_TIMEOUT = 4.0
     
     # 'close.png' configuration
@@ -154,7 +150,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                         base_path = os.path.join(os.path.dirname(__file__), "images", game_name)
                         img_shack = os.path.join(base_path, "shack.png")
                         find_and_click_with_retry("Shack", img_shack, roi=roi, debug=debug)
-                        time.sleep(5.0)
+                        time.sleep(4.0)
                         return
                     
                     time.sleep(0.5)
@@ -192,16 +188,14 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # TRICKS
             # =========================
             can_trick = (_trick_done is None or _trick_done.is_set())
-            is_cooldown_ok = (time.time() - last_trick_time) >= trick_cooldown()
             
-            if sign_count == 0 and not sign_detected and can_trick and is_cooldown_ok:
-                if last_trick != '360':
-                    last_trick = '360'
-                    _trick_done = _trigger_trick(perform_360, debug)
-                else:
+            if sign_count == 0 and not sign_detected and can_trick:
+                if last_trick != 'loop':
                     last_trick = 'loop'
                     _trick_done = _trigger_trick(perform_loop, debug)
-                last_trick_time = time.time()
+                else:
+                    last_trick = '360'
+                    _trick_done = _trigger_trick(perform_360, debug)
 
             # =========================
             # VISUALIZATION
