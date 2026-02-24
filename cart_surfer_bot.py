@@ -1,4 +1,4 @@
-# pip install keyboard mousekey locate-pixelcolor-cpppragma fast_ctypes_screenshots numpy pydirectinput opencv-python pyautogui
+# pip install keyboard mousekey fast_ctypes_screenshots numpy pydirectinput opencv-python pyautogui
 
 import keyboard
 import time
