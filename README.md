@@ -6,20 +6,24 @@ This bot automatically detects the game on screen, starts the match, performs tr
 
 ## Requirements
 
-- **Python 3.11** (Recommended)
+- **uv** (python dependency manager)
 - Windows (Tested on Windows 10/11)
 
 ## Installation
 
 1.  **Clone or download** this repository.
 2.  Open the terminal in the project folder.
-3.  Install the dependencies using the command:
+3.  Install python using the command:
 
 ```bash
-pip install -r requirements.txt
+uv python install
 ```
 
-> **Note:** Make sure Python 3.11 is in your PATH.
+4.  Install the dependencies using the command:
+
+```bash
+uv sync
+```
 
 ## How to Use
 
@@ -28,11 +32,11 @@ The bot must be run via the command line (CMD or PowerShell).
 ### Basic Command
 
 ```bash
-python cart_surfer_bot.py -g newcp
+uv run main.py -g newcp
 ```
 or
 ```bash
-python cart_surfer_bot.py -g journey
+uv run main.py -g journey
 ```
 
 The `-g` (or `--game`) argument is **required** and defines which version of the game you are playing (`newcp` or `journey`). This adjusts the colors and images used for detection.
@@ -41,11 +45,11 @@ The `-g` (or `--game`) argument is **required** and defines which version of the
 
 -   `-debug`: Activates debug mode, showing detailed logs in the terminal about what the bot is detecting.
     ```bash
-    python cart_surfer_bot.py -g newcp -debug
+    uv run main.py -g newcp -debug
     ```
 -   `-vis`: Activates a real-time visualization window, showing what the bot "sees" and the detection zones.
     ```bash
-    python cart_surfer_bot.py -g newcp -vis
+    uv run main.py -g newcp -vis
     ```
 
 ## In-Game Controls
@@ -70,7 +74,7 @@ cart_surfer_automation/
 │   │   └── shack.png
 │   └── journey/
 │       ├── (equivalent images)
-├── cart_surfer_bot.py
+├── main.py
 ├── game_player.py
 ├── game_starter.py
 └── ...
