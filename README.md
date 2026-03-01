@@ -13,13 +13,19 @@ This bot automatically detects the game on screen, starts the match, performs tr
 
 1.  **Clone or download** this repository.
 2.  Open the terminal in the project folder.
-3.  Install python using the command:
+3.  Install **uv** using the command:
+
+```bash
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+4.  Install python using the command:
 
 ```bash
 uv python install
 ```
 
-4.  Install the dependencies using the command:
+5.  Install the dependencies using the command:
 
 ```bash
 uv sync
