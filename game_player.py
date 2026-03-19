@@ -41,6 +41,27 @@ def _trigger_trick(fn, debug):
     trick_executor.submit(fn, debug, done_event)
     return done_event
 
+def perform_turn(direction, debug=False):
+    TURN_TIME = 1.64
+    if direction == "right":
+        if debug:
+            print(f"RIGHT (Zone) -> ↩ TURNING LEFT")
+        _kb.press(Key.down)
+        _kb.press(Key.left)
+        time.sleep(TURN_TIME)
+        _kb.release(Key.left)
+        _kb.release(Key.down)
+        turn_needed = True
+    elif direction == "left":
+        if debug:
+            print(f"LEFT (Zone) -> ↪ TURNING RIGHT")
+        _kb.press(Key.down)
+        _kb.press(Key.right)
+        time.sleep(TURN_TIME)
+        _kb.release(Key.right)
+        _kb.release(Key.down)
+        turn_needed = True
+
 def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_callback=None):
     """
     Runs the main game loop.
@@ -67,7 +88,6 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     last_trick = None  # None, 'loop' or '360' — controls trick alternation
     _trick_done = None   # Event signaling when current trick finished
 
-    TURN_TIME = 1.64
     RESET_TIMEOUT = 4.0
     
     # 'close.png' configuration
@@ -261,23 +281,9 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                 turn_needed = False
                 
                 if detected_right:
-                    if debug:
-                        print(f"RIGHT (Zone) -> ↩ TURNING LEFT")
-                    _kb.press(Key.down)
-                    _kb.press(Key.left)
-                    time.sleep(TURN_TIME)
-                    _kb.release(Key.left)
-                    _kb.release(Key.down)
-                    turn_needed = True
+                    perform_turn("right", debug)
                 elif detected_left:
-                    if debug:
-                        print(f"LEFT (Zone) -> ↪ TURNING RIGHT")
-                    _kb.press(Key.down)
-                    _kb.press(Key.right)
-                    time.sleep(TURN_TIME)
-                    _kb.release(Key.right)
-                    _kb.release(Key.down)
-                    turn_needed = True
+                    perform_turn("left", debug)
                     
                 if turn_needed:
                     sign_count = 0
