@@ -256,14 +256,17 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # =========================
             # SIGN COUNTING
             # =========================
+            current_time = time.time()
             if sign_detected and not last_sign_visible:
-                sign_count += 1
-                last_sign_time = time.time()
-                if debug:
-                    status_txt = "NONE"
-                    if detected_left: status_txt = "LEFT"
-                    if detected_right: status_txt = "RIGHT"
-                    print(f"Sign #{sign_count} detected at: {status_txt}")
+                # Add debounce/cooldown of 0.1s to avoid double counting on flickers
+                if current_time - last_sign_time > 0.1:
+                    sign_count += 1
+                    last_sign_time = current_time
+                    if debug:
+                        status_txt = "NONE"
+                        if detected_left: status_txt = "LEFT"
+                        if detected_right: status_txt = "RIGHT"
+                        print(f"Sign #{sign_count} detected at: {status_txt}")
 
             last_sign_visible = sign_detected
 
@@ -278,12 +281,15 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # TURN ONLY ON 3RD
             # =========================
             if sign_count >= 3:
-                turn_needed = False
+                turned = False
                 
                 if detected_right:
                     perform_turn("right", debug)
+                    turned = True
                 elif detected_left:
                     perform_turn("left", debug)
+                    turned = True
                     
-                if turn_needed:
+                if turned:
                     sign_count = 0
+                    last_sign_time = time.time() # Reset timeout base after turning
