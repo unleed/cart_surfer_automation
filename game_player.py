@@ -96,6 +96,8 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     if img_close is None:
         if debug: print(f"[WARNING] Image close.png not found at: {path_close}")
         
+    last_check_close = time.time()
+    CHECK_CLOSE_INTERVAL = 0.5  # Check every 0.5s to detect end of game quickly
     game_start_time = time.time()
     close_detection_active = False  # Flag to indicate when close detection is active
     game_is_ending = False
@@ -142,7 +144,8 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # GAME END DETECTION (CLOSE)
             # =========================
             current_time = time.time()
-            if img_close is not None:
+            if img_close is not None and (current_time - last_check_close > CHECK_CLOSE_INTERVAL):
+                last_check_close = current_time
                 
                 if not close_detection_active:
                     close_detection_active = True
@@ -190,16 +193,17 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # =========================
             # SIGN DETECTION
             # =========================
-            small = frame_roi[::2, ::2]
+            # Convert BGRA to BGR equivalent early if needed
+            if frame_roi.shape[2] == 4:
+                frame_roi_bgr = frame_roi[:, :, :3]
+            else:
+                frame_roi_bgr = frame_roi
+                
+            small = frame_roi_bgr[::2, ::2]
             small = small[0:int(small.shape[0]*0.6), :]
 
             roi_esq = small[y1_esq:y2_esq, x1_esq:x2_esq]
             roi_dir = small[y1_dir:y2_dir, x1_dir:x2_dir]
-
-            # Convert BGRA to BGR equivalent check (Slice apenas os canais BGRA)
-            if roi_esq.shape[2] == 4:
-                roi_esq = roi_esq[:, :, :3]
-                roi_dir = roi_dir[:, :, :3]
 
             # Vectorized processing with Numpy OpenCV base
             mask_left = cv2.inRange(roi_esq, bgr_target_color, bgr_target_color)
@@ -215,7 +219,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # =========================
             # When the game ends, the screen is covered by a solid bright flash (clarão).
             # We can detect this lack of detail by checking if the standard deviation of pixels is very low.
-            gray_small = cv2.cvtColor(frame_roi[::4, ::4], cv2.COLOR_BGRA2GRAY) if frame_roi.shape[2] == 4 else cv2.cvtColor(frame_roi[::4, ::4], cv2.COLOR_BGR2GRAY)
+            gray_small = cv2.cvtColor(frame_roi_bgr[::4, ::4], cv2.COLOR_BGR2GRAY) # MUST use the full frame, not the cropped 'small', so std calculation isn't skewed by the close button
             
             # Normal game has high std (lots of details). Clarão has low std (solid color).
             if np.std(gray_small) < 15.0:
@@ -316,3 +320,6 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                 if turned:
                     sign_count = 0
                     last_sign_time = time.time() # Reset timeout base after turning
+                    
+            # Frame rate limiter (throttle CPU usage to ~30 fps)
+            time.sleep(0.03)
