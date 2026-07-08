@@ -96,13 +96,13 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     if img_close is None:
         if debug: print(f"[WARNING] Image close.png not found at: {path_close}")
         
-    last_check_close = time.time()
-    CHECK_CLOSE_INTERVAL = 1.0  # Checks every 1 second to avoid weighing down the loop
-    
-    # Only starts looking for close button after X seconds
-    TIME_BEFORE_CHECK_CLOSE = 45
     game_start_time = time.time()
     close_detection_active = False  # Flag to indicate when close detection is active
+    game_is_ending = False
+    
+    # Motion detection variables
+    prev_gray = None
+    static_start_time = time.time()
 
     if debug: print("Starting game loop...")
 
@@ -142,15 +142,11 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # GAME END DETECTION (CLOSE)
             # =========================
             current_time = time.time()
-            if (img_close is not None and 
-                (current_time - game_start_time > TIME_BEFORE_CHECK_CLOSE) and 
-                (current_time - last_check_close > CHECK_CLOSE_INTERVAL)):
+            if img_close is not None:
                 
                 if not close_detection_active:
                     close_detection_active = True
                     if debug: print("[INFO] close.png detection activated. Stopping sign detection.")
-                
-                last_check_close = current_time
                 
                 h_f, w_f = frame_roi.shape[:2]
                 
@@ -164,6 +160,9 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                 res = cv2.matchTemplate(pass_search, img_close, cv2.TM_CCOEFF_NORMED)
                 min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
                 
+                if max_val > 0.4:
+                    game_is_ending = True
+                    
                 if max_val >= 0.8:
                     if debug: print(f"Game end detected! (Confidence: {max_val:.2f})")
                     
@@ -212,11 +211,35 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             sign_detected = detected_left or detected_right
 
             # =========================
+            # GAME OVER SCREEN (CLARÃO) DETECTION
+            # =========================
+            # When the game ends, the screen is covered by a solid bright flash (clarão).
+            # We can detect this lack of detail by checking if the standard deviation of pixels is very low.
+            gray_small = cv2.cvtColor(frame_roi[::4, ::4], cv2.COLOR_BGRA2GRAY) if frame_roi.shape[2] == 4 else cv2.cvtColor(frame_roi[::4, ::4], cv2.COLOR_BGR2GRAY)
+            
+            # Normal game has high std (lots of details). Clarão has low std (solid color).
+            if np.std(gray_small) < 15.0:
+                game_is_ending = True
+                
+            # Also keep the static detection just in case it freezes before the clarão
+            if prev_gray is None:
+                prev_gray = gray_small
+                static_start_time = current_time
+            else:
+                diff = cv2.absdiff(gray_small, prev_gray)
+                if np.mean(diff) < 2.0:
+                    if current_time - static_start_time > 1.0:
+                        game_is_ending = True
+                else:
+                    static_start_time = current_time
+                prev_gray = gray_small
+
+            # =========================
             # TRICKS
             # =========================
             can_trick = (_trick_done is None or _trick_done.is_set())
             
-            if sign_count == 0 and not sign_detected and can_trick:
+            if not game_is_ending and sign_count == 0 and not sign_detected and can_trick:
                 if last_trick != 'loop':
                     last_trick = 'loop'
                     _trick_done = _trigger_trick(perform_loop, debug)
