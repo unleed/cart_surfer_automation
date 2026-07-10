@@ -87,7 +87,7 @@ class TrickController:
             return
             
         self._release_all()
-        TURN_TIME = 1.6255
+        TURN_TIME = 1.625
         
         if direction == "right":
             if self.debug: print("RIGHT -> LEFT")
@@ -135,7 +135,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     last_x_pos = None
     trick_controller = TrickController(debug=debug)
 
-    RESET_TIMEOUT = 4.0
+    RESET_TIMEOUT = 3.5
     
     # 'close.png' configuration
     path_close = os.path.join(os.path.dirname(__file__), "images", game_name, "close.png")
