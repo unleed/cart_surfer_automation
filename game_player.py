@@ -183,7 +183,9 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     monitor_roi = {"top": y, "left": x, "width": w, "height": h}
 
     with mss.mss() as sct:
+        first_vis = True
         while True:
+            loop_start_time = time.time()
             trick_controller.update()
             
             sct_img = sct.grab(monitor_roi)
@@ -300,10 +302,6 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # =========================
             if visualize:
                 vis = small.copy()
-                if vis.shape[2] == 4:
-                    vis = cv2.cvtColor(vis, cv2.COLOR_BGRA2RGB)
-                else:
-                    vis = cv2.cvtColor(vis, cv2.COLOR_BGR2RGB)
                 
                 color_left = (0, 255, 0) if detected_left else (255, 0, 0)
                 cv2.rectangle(vis, (x1_esq, y1_esq), (x2_esq, y2_esq), color_left, 2)
@@ -320,6 +318,16 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                 cv2.putText(vis, f"Detected: {status_txt}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, .7, (0, 255, 255), 2)
                 
                 cv2.imshow("Sign Detection", vis)
+                if first_vis:
+                    # Move to secondary monitor if available
+                    if len(sct.monitors) > 2:
+                        sec_mon = sct.monitors[2]
+                        cv2.moveWindow("Sign Detection", sec_mon["left"] + 50, sec_mon["top"] + 50)
+                        
+                    # Click on the game window to restore focus after OpenCV window steals it
+                    pyautogui.click(roi["x"] + roi["w"] // 2, roi["y"] + roi["h"] // 2)
+                    first_vis = False
+                    
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     cv2.destroyAllWindows()
                     break
@@ -371,4 +379,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                     last_sign_time = time.time() # Reset timeout base after turning
                     
             # Frame rate limiter (throttle CPU usage to ~30 fps)
-            time.sleep(.03)
+            elapsed = time.time() - loop_start_time
+            sleep_time = max(0, .03 - elapsed)
+            if sleep_time > 0:
+                time.sleep(sleep_time)
