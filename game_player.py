@@ -375,7 +375,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # =========================
             # TURN ONLY ON 3RD
             # =========================
-            if sign_count >= 2:
+            if sign_count > 2:
                 turned = False
                 
                 if detected_right:

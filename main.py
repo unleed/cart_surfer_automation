@@ -77,6 +77,13 @@ while True:
         if not game_running:
             # Attempts to start game automatically
             if DEBUG: print("\nStarting automation sequence...")
+            
+            # No Linux, o primeiro clique em uma janela desfocada costuma ser "engolido" pelo sistema apenas para dar foco.
+            # Damos um clique inicial no topo da tela do jogo para garantir que ele está em primeiro plano e pronto para receber cliques.
+            import pyautogui
+            pyautogui.click(roi["x"] + roi["w"] // 2, roi["y"] + roi["h"] - 10)
+            time.sleep(0.2)
+            
             success = start_game_sequence(roi, GAME, debug=DEBUG)
             if success:
                 game_running = True

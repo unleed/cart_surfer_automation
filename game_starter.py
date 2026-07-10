@@ -4,6 +4,8 @@ import pyautogui
 import cv2
 import numpy as np
 
+import mss
+
 def find_image_in_roi(image_path, roi, confidence=0.8, debug=False):
     """
     Searches for an image within a region of interest (ROI).
@@ -12,17 +14,34 @@ def find_image_in_roi(image_path, roi, confidence=0.8, debug=False):
         if debug: print(f"[ERROR] Image not found: {image_path}")
         return None
         
-    region = (roi['x'], roi['y'], roi['w'], roi['h'])
+    template = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    if template is None:
+        if debug: print(f"[ERROR] Could not load image: {image_path}")
+        return None
+        
+    th, tw = template.shape[:2]
+    monitor = {"top": roi['y'], "left": roi['x'], "width": roi['w'], "height": roi['h']}
     
     try:
-        # pyautogui.locateCenterOnScreen returns center (x, y)
-        location = pyautogui.locateCenterOnScreen(image_path, region=region, confidence=confidence, grayscale=False)
-        return location
-    except pyautogui.ImageNotFoundException:
-        return None
+        with mss.mss() as sct:
+            sct_img = sct.grab(monitor)
+            frame = np.array(sct_img)
+            
+            if frame.shape[2] == 4:
+                frame = frame[:, :, :3]
+                
+            res = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+            
+            if max_val >= confidence:
+                # Retorna o centro da imagem
+                center_x = roi['x'] + max_loc[0] + tw // 2
+                center_y = roi['y'] + max_loc[1] + th // 2
+                return (center_x, center_y)
     except Exception as e:
         if debug: print(f"[ERROR] Failed to search for image {image_path}: {e}")
-        return None
+        
+    return None
 
 def find_and_click_with_retry(target_name, target_path, confirm_path=None, roi=None, attempts=3, timeout=10, debug=False):
     """
@@ -81,14 +100,17 @@ def start_game_sequence(roi, game_name, debug=False):
     
     # Step 1: Cart Surfer -> Yes
     if not find_and_click_with_retry("Cart Surfer", img_cart, confirm_path=img_yes, roi=roi, debug=debug):
+        print("[DEBUG] Cart Surfer not found.")
         return False
         
     # Step 2: Yes -> Play
     if not find_and_click_with_retry("Yes Button", img_yes, confirm_path=img_play, roi=roi, debug=debug):
+        print("[DEBUG] Yes Button not found.")
         return False
         
     # Step 3: Play -> Start Game
     if not find_and_click_with_retry("Play Button", img_play, confirm_path=None, roi=roi, debug=debug):
+        print("[DEBUG] Play Button not found.")
         return False
         
     if debug: print("=== Game Started Successfully ===")
