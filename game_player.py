@@ -24,6 +24,7 @@ class TrickController:
         self.next_action_time = 0
         self.next_trick = "LOOP"
         self.active_keys = set()
+        self.queued_turn = None
         
     def _press(self, key):
         _kb.press(key)
@@ -52,6 +53,11 @@ class TrickController:
             elif self.state in (TrickState.WAIT_LOOP_FINISH, TrickState.WAIT_360_FINISH):
                 self.state = TrickState.IDLE
                 if self.debug: print("Trick cooldown finished. State -> IDLE")
+                
+                if self.queued_turn:
+                    turn_dir = self.queued_turn
+                    self.queued_turn = None
+                    self.execute_turn(turn_dir)
 
     def can_execute_trick(self):
         return self.state == TrickState.IDLE
@@ -68,7 +74,7 @@ class TrickController:
             self._release(Key.space)
             
             self.state = TrickState.WAIT_LOOP_FINISH
-            self.next_action_time = time.monotonic() + 1
+            self.next_action_time = time.monotonic() + 1.05
             self.next_trick = "360"
             
         elif self.next_trick == "360":
@@ -84,6 +90,11 @@ class TrickController:
 
     def execute_turn(self, direction):
         if self.state == TrickState.GAME_ENDING:
+            return
+            
+        if self.state != TrickState.IDLE:
+            self.queued_turn = direction
+            if self.debug: print(f"Turn {direction} queued because trick is running.")
             return
             
         self._release_all()
@@ -364,7 +375,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # =========================
             # TURN ONLY ON 3RD
             # =========================
-            if sign_count >= 3:
+            if sign_count >= 2:
                 turned = False
                 
                 if detected_right:
