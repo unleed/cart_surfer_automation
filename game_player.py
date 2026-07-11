@@ -25,6 +25,18 @@ class TrickController:
         self.next_trick = "LOOP"
         self.active_keys = set()
         self.queued_turn = None
+        self.pending_turn = None
+        self.turn_start_time = 0
+
+    def full_reset(self):
+        """Zera rigorosamente todos os estados e timers."""
+        self._release_all()
+        self.state = TrickState.IDLE
+        self.next_action_time = 0
+        self.next_trick = "LOOP"
+        self.queued_turn = None
+        self.pending_turn = None
+        self.turn_start_time = 0
         
     def _press(self, key):
         _kb.press(key)
@@ -120,9 +132,9 @@ class TrickController:
         self._release_all()
         self.state = TrickState.GAME_ENDING
 
-def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_callback=None):
+def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_check_callback=None, frame_inspector=None):
     """
-    Runs the main game loop.
+    Main loop for Cart Surfer automation.
     
     Args:
         roi: Dictionary with ROI coordinates {'x': int, 'y': int, 'w': int, 'h': int}
@@ -130,6 +142,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
         debug: If True, shows logs.
         visualize: If True, shows visualization window.
         active_check_callback: Function that returns True if the loop should continue processing frames.
+        frame_inspector: Optional callback to process raw BGR frames.
     """
     
     # =========================
@@ -142,7 +155,6 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     sign_count = 0
     last_sign_visible = False
     last_sign_time = time.time()
-    last_x_pos = None
     last_x_pos = None
     trick_controller = TrickController(debug=debug)
 
@@ -197,10 +209,25 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
         first_vis = True
         while True:
             loop_start_time = time.time()
+            
+            # Allow external code to stop the loop gracefully
+            if active_check_callback and not active_check_callback():
+                if debug: print("\nBot disabled. Exiting game loop...")
+                trick_controller.full_reset()
+                break
+
             trick_controller.update()
             
             sct_img = sct.grab(monitor_roi)
             frame_roi = np.array(sct_img)
+            
+            if frame_roi.shape[2] == 4:
+                frame_bgr = frame_roi[:, :, :3]
+            else:
+                frame_bgr = frame_roi
+                
+            if frame_inspector:
+                frame_inspector(frame_bgr)
             
             # =========================
             # GAME END DETECTION (CLOSE)
