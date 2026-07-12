@@ -104,9 +104,10 @@ while True:
         if not game_running:
             if DEBUG: print("\nStarting automation sequence...")
             
-            import pyautogui
-            pyautogui.click(roi["x"] + roi["w"] // 2, roi["y"] + roi["h"] - 10)
-            time.sleep(0.2)
+            # Uncomment this if the main window of the game is not being clicked automatically
+            # import pyautogui
+            # pyautogui.click(roi["x"] + roi["w"] // 2, roi["y"] + roi["h"] - 10)
+            # time.sleep(0.2)
             
             # Callback para abortar o start sequence caso perca conexao durante os menus
             def should_abort_start():
