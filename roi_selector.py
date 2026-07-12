@@ -1,8 +1,8 @@
 import cv2
 import json
 import os
-import pyautogui
 import numpy as np
+import mss
 
 CONFIG_DIR = "config"
 
@@ -60,8 +60,13 @@ def select_roi(game_name):
     print(f"=== DETECTING GAME AREA ({game_name}) ===")
     
     # capture full screen
-    screenshot = pyautogui.screenshot()
-    frame = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+    with mss.mss() as sct:
+        # monitors[0] captures all combined monitors
+        sct_img = sct.grab(sct.monitors[0])
+        frame = np.array(sct_img)
+        # mss returns BGRA, convert to BGR for OpenCV
+        if frame.shape[2] == 4:
+            frame = frame[:, :, :3]
 
     print("Attempting to auto-detect game area...")
     auto_roi = auto_detect_game_area(frame)

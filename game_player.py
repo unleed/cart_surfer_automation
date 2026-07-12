@@ -3,68 +3,138 @@ import time
 import pyautogui
 import cv2
 import os
-import threading
-from concurrent.futures import ThreadPoolExecutor
 import mss
 from pynput.keyboard import Controller, Key
 from game_starter import find_and_click_with_retry
+import enum
 
 _kb = Controller()
 
-trick_executor = ThreadPoolExecutor(max_workers=2)
+class TrickState(enum.Enum):
+    IDLE = 1
+    WAIT_LOOP_FINISH = 2
+    WAIT_360_FINISH = 3
+    TURNING = 4
+    GAME_ENDING = 5
 
-def perform_loop(debug=False, done_event=None):
-    """Executes loop trick: down + space (runs in separate thread)."""
-    if debug: print("[TRICK] Executing: LOOP (down + space)")
-    _kb.press(Key.down)
-    _kb.release(Key.down)
-    _kb.press(Key.space)
-    _kb.release(Key.space)
-    time.sleep(1.1) # Simulates trick time
-    if done_event:
-        done_event.set()
+class TrickController:
+    def __init__(self, debug=False):
+        self.debug = debug
+        self.state = TrickState.IDLE
+        self.next_action_time = 0
+        self.next_trick = "LOOP"
+        self.active_keys = set()
+        self.queued_turn = None
+        self.pending_turn = None
+        self.turn_start_time = 0
 
-def perform_360(debug=False, done_event=None):
-    """Executes 360 trick: space + right (runs in separate thread)."""
-    if debug: print("[TRICK] Executing: 360 (space + right)")
-    _kb.press(Key.space)
-    _kb.release(Key.space)
-    _kb.press(Key.right)
-    _kb.release(Key.right)
-    time.sleep(0.8) # Simulates trick time
-    if done_event:
-        done_event.set()
+    def full_reset(self):
+        """Zera rigorosamente todos os estados e timers."""
+        self._release_all()
+        self.state = TrickState.IDLE
+        self.next_action_time = 0
+        self.next_trick = "LOOP"
+        self.queued_turn = None
+        self.pending_turn = None
+        self.turn_start_time = 0
+        
+    def _press(self, key):
+        _kb.press(key)
+        self.active_keys.add(key)
+        
+    def _release(self, key):
+        _kb.release(key)
+        if key in self.active_keys:
+            self.active_keys.remove(key)
+            
+    def _release_all(self):
+        for key in list(self.active_keys):
+            _kb.release(key)
+        self.active_keys.clear()
 
-def _trigger_trick(fn, debug):
-    """Triggers a trick function in a pool and returns the completion Event."""
-    done_event = threading.Event()
-    trick_executor.submit(fn, debug, done_event)
-    return done_event
+    def update(self):
+        """Called every frame to process state timeouts."""
+        if self.state == TrickState.IDLE or self.state == TrickState.GAME_ENDING:
+            return
+            
+        if time.monotonic() >= self.next_action_time:
+            if self.state == TrickState.TURNING:
+                self._release_all()
+                self.state = TrickState.IDLE
+                if self.debug: print("Turn finished. State -> IDLE")
+            elif self.state in (TrickState.WAIT_LOOP_FINISH, TrickState.WAIT_360_FINISH):
+                self.state = TrickState.IDLE
+                if self.debug: print("Trick cooldown finished. State -> IDLE")
+                
+                if self.queued_turn:
+                    turn_dir = self.queued_turn
+                    self.queued_turn = None
+                    self.execute_turn(turn_dir)
 
-def perform_turn(direction, debug=False):
-    TURN_TIME = 1.64
-    if direction == "right":
-        if debug:
-            print(f"RIGHT (Zone) -> ↩ TURNING LEFT")
-        _kb.press(Key.down)
-        _kb.press(Key.left)
-        time.sleep(TURN_TIME)
-        _kb.release(Key.left)
-        _kb.release(Key.down)
-        turn_needed = True
-    elif direction == "left":
-        if debug:
-            print(f"LEFT (Zone) -> ↪ TURNING RIGHT")
-        _kb.press(Key.down)
-        _kb.press(Key.right)
-        time.sleep(TURN_TIME)
-        _kb.release(Key.right)
-        _kb.release(Key.down)
-        turn_needed = True
+    def can_execute_trick(self):
+        return self.state == TrickState.IDLE
 
-def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_callback=None):
+    def execute_trick(self):
+        if not self.can_execute_trick():
+            return
+            
+        if self.next_trick == "LOOP":
+            if self.debug: print("[TRICK] LOOP")
+            self._press(Key.down)
+            self._release(Key.down)
+            self._press(Key.space)
+            self._release(Key.space)
+            
+            self.state = TrickState.WAIT_LOOP_FINISH
+            self.next_action_time = time.monotonic() + 1.05
+            self.next_trick = "360"
+            
+        elif self.next_trick == "360":
+            if self.debug: print("[TRICK] 360")
+            self._press(Key.space)
+            self._release(Key.space)
+            self._press(Key.right)
+            self._release(Key.right)
+            
+            self.state = TrickState.WAIT_360_FINISH
+            self.next_action_time = time.monotonic() + .7
+            self.next_trick = "LOOP"
+
+    def execute_turn(self, direction):
+        if self.state == TrickState.GAME_ENDING:
+            return
+            
+        if self.state != TrickState.IDLE:
+            self.queued_turn = direction
+            if self.debug: print(f"Turn {direction} queued because trick is running.")
+            return
+            
+        self._release_all()
+        TURN_TIME = 1.625
+        
+        if direction == "right":
+            if self.debug: print("RIGHT -> LEFT")
+            self._press(Key.down)
+            self._press(Key.left)
+        elif direction == "left":
+            if self.debug: print("LEFT -> RIGHT")
+            self._press(Key.down)
+            self._press(Key.right)
+            
+        self.state = TrickState.TURNING
+        self.next_action_time = time.monotonic() + TURN_TIME
+
+    def reset_state(self):
+        self._release_all()
+        self.state = TrickState.IDLE
+        
+    def set_game_ending(self):
+        self._release_all()
+        self.state = TrickState.GAME_ENDING
+
+def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_check_callback=None, frame_inspector=None):
     """
-    Runs the main game loop.
+    Main loop for Cart Surfer automation.
     
     Args:
         roi: Dictionary with ROI coordinates {'x': int, 'y': int, 'w': int, 'h': int}
@@ -72,6 +142,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
         debug: If True, shows logs.
         visualize: If True, shows visualization window.
         active_check_callback: Function that returns True if the loop should continue processing frames.
+        frame_inspector: Optional callback to process raw BGR frames.
     """
     
     # =========================
@@ -85,10 +156,9 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     last_sign_visible = False
     last_sign_time = time.time()
     last_x_pos = None
-    last_trick = None  # None, 'loop' or '360' — controls trick alternation
-    _trick_done = None   # Event signaling when current trick finished
+    trick_controller = TrickController(debug=debug)
 
-    RESET_TIMEOUT = 4.0
+    RESET_TIMEOUT = 3.5
     
     # 'close.png' configuration
     path_close = os.path.join(os.path.dirname(__file__), "images", game_name, "close.png")
@@ -97,7 +167,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
         if debug: print(f"[WARNING] Image close.png not found at: {path_close}")
         
     last_check_close = time.time()
-    CHECK_CLOSE_INTERVAL = 0.5  # Check every 0.5s to detect end of game quickly
+    CHECK_CLOSE_INTERVAL = .5  # Check every 0.5s to detect end of game quickly
     game_start_time = time.time()
     close_detection_active = False  # Flag to indicate when close detection is active
     game_is_ending = False
@@ -113,20 +183,20 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     # =========================
     # Reducing resolution to create variables previously
     small_w = (roi["w"] + 1) // 2
-    small_h = int(((roi["h"] + 1) // 2) * 0.6)
+    small_h = int(((roi["h"] + 1) // 2) * .6)
     
-    zone_w = int(small_w * 0.05)
-    zone_h = int(small_h * 0.10)
+    zone_w = int(small_w * .05)
+    zone_h = int(small_h * .10)
     
-    cx_esq = int(small_w * 0.25)
-    cy_esq = int(small_h * 0.80)
+    cx_esq = int(small_w * .25)
+    cy_esq = int(small_h * .80)
     x1_esq = max(0, cx_esq - zone_w // 2)
     y1_esq = max(0, cy_esq - zone_h // 2)
     x2_esq = min(small_w, cx_esq + zone_w // 2)
     y2_esq = min(small_h, cy_esq + zone_h // 2)
     
-    cx_dir = int(small_w * 0.75)
-    cy_dir = int(small_h * 0.80)
+    cx_dir = int(small_w * .75)
+    cy_dir = int(small_h * .80)
     x1_dir = max(0, cx_dir - zone_w // 2)
     y1_dir = max(0, cy_dir - zone_h // 2)
     x2_dir = min(small_w, cx_dir + zone_w // 2)
@@ -136,9 +206,28 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
     monitor_roi = {"top": y, "left": x, "width": w, "height": h}
 
     with mss.mss() as sct:
-        while True:        
+        first_vis = True
+        while True:
+            loop_start_time = time.time()
+            
+            # Allow external code to stop the loop gracefully
+            if active_check_callback and not active_check_callback():
+                if debug: print("\nBot disabled. Exiting game loop...")
+                trick_controller.full_reset()
+                break
+
+            trick_controller.update()
+            
             sct_img = sct.grab(monitor_roi)
             frame_roi = np.array(sct_img)
+            
+            if frame_roi.shape[2] == 4:
+                frame_bgr = frame_roi[:, :, :3]
+            else:
+                frame_bgr = frame_roi
+                
+            if frame_inspector:
+                frame_inspector(frame_bgr)
             
             # =========================
             # GAME END DETECTION (CLOSE)
@@ -163,10 +252,10 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                 res = cv2.matchTemplate(pass_search, img_close, cv2.TM_CCOEFF_NORMED)
                 min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
                 
-                if max_val > 0.4:
+                if max_val > .4:
                     game_is_ending = True
                     
-                if max_val >= 0.8:
+                if max_val >= .8:
                     if debug: print(f"Game end detected! (Confidence: {max_val:.2f})")
                     
                     h_close, w_close = img_close.shape[:2]
@@ -175,6 +264,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                     cy = y + max_loc[1] + h_close // 2
                     
                     pyautogui.click(cx, cy)
+                    trick_controller.set_game_ending()
 
                     if game_name == 'newcp':
                         base_path = os.path.join(os.path.dirname(__file__), "images", game_name)
@@ -183,11 +273,12 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                         time.sleep(4.0)
                         return
                     
-                    time.sleep(0.5)
+                    time.sleep(.5)
                     return
                     
             if active_check_callback and not active_check_callback():
-                time.sleep(0.05)
+                trick_controller.reset_state()
+                time.sleep(.05)
                 continue
                 
             # =========================
@@ -200,7 +291,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                 frame_roi_bgr = frame_roi
                 
             small = frame_roi_bgr[::2, ::2]
-            small = small[0:int(small.shape[0]*0.6), :]
+            small = small[0:int(small.shape[0]*.6), :]
 
             roi_esq = small[y1_esq:y2_esq, x1_esq:x2_esq]
             roi_dir = small[y1_dir:y2_dir, x1_dir:x2_dir]
@@ -241,25 +332,14 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # =========================
             # TRICKS
             # =========================
-            can_trick = (_trick_done is None or _trick_done.is_set())
-            
-            if not game_is_ending and sign_count == 0 and not sign_detected and can_trick:
-                if last_trick != 'loop':
-                    last_trick = 'loop'
-                    _trick_done = _trigger_trick(perform_loop, debug)
-                else:
-                    last_trick = '360'
-                    _trick_done = _trigger_trick(perform_360, debug)
+            if not game_is_ending and sign_count == 0 and not sign_detected and trick_controller.can_execute_trick():
+                trick_controller.execute_trick()
 
             # =========================
             # VISUALIZATION
             # =========================
             if visualize:
                 vis = small.copy()
-                if vis.shape[2] == 4:
-                    vis = cv2.cvtColor(vis, cv2.COLOR_BGRA2RGB)
-                else:
-                    vis = cv2.cvtColor(vis, cv2.COLOR_BGR2RGB)
                 
                 color_left = (0, 255, 0) if detected_left else (255, 0, 0)
                 cv2.rectangle(vis, (x1_esq, y1_esq), (x2_esq, y2_esq), color_left, 2)
@@ -273,9 +353,19 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                 if detected_left: status_txt = "LEFT"
                 if detected_right: status_txt = "RIGHT"
                 
-                cv2.putText(vis, f"Detected: {status_txt}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                cv2.putText(vis, f"Detected: {status_txt}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, .7, (0, 255, 255), 2)
                 
                 cv2.imshow("Sign Detection", vis)
+                if first_vis:
+                    # Move to secondary monitor if available
+                    if len(sct.monitors) > 2:
+                        sec_mon = sct.monitors[2]
+                        cv2.moveWindow("Sign Detection", sec_mon["left"] + 50, sec_mon["top"] + 50)
+                        
+                    # Click on the game window to restore focus after OpenCV window steals it
+                    pyautogui.click(roi["x"] + roi["w"] // 2, roi["y"] + roi["h"] // 2)
+                    first_vis = False
+                    
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     cv2.destroyAllWindows()
                     break
@@ -284,9 +374,14 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # SIGN COUNTING
             # =========================
             current_time = time.time()
+            
+            # Ignore signs during the turn to avoid counting the current turn's signs as they leave the screen
+            if trick_controller.state == TrickState.TURNING:
+                sign_detected = False
+                
             if sign_detected and not last_sign_visible:
                 # Add debounce/cooldown of 0.1s to avoid double counting on flickers
-                if current_time - last_sign_time > 0.1:
+                if current_time - last_sign_time > .1:
                     sign_count += 1
                     last_sign_time = current_time
                     if debug:
@@ -307,14 +402,14 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
             # =========================
             # TURN ONLY ON 3RD
             # =========================
-            if sign_count >= 3:
+            if sign_count > 2:
                 turned = False
                 
                 if detected_right:
-                    perform_turn("right", debug)
+                    trick_controller.execute_turn("right")
                     turned = True
                 elif detected_left:
-                    perform_turn("left", debug)
+                    trick_controller.execute_turn("left")
                     turned = True
                     
                 if turned:
@@ -322,4 +417,7 @@ def run_game_loop(roi, game_name, debug=False, visualize=False, active_check_cal
                     last_sign_time = time.time() # Reset timeout base after turning
                     
             # Frame rate limiter (throttle CPU usage to ~30 fps)
-            time.sleep(0.03)
+            elapsed = time.time() - loop_start_time
+            sleep_time = max(0, .03 - elapsed)
+            if sleep_time > 0:
+                time.sleep(sleep_time)
