@@ -40,40 +40,78 @@ class RecoveryManager:
             self.context.input.tap(GameKey.F5)
             time.sleep(3) # Tempo inicial para a pagina comecar a recarregar
 
-        # 2. account.png
-        print("[RecoveryManager] Aguardando tela de selecao de conta...")
-        if not find_and_click_with_retry_fn("Account", self._path("account.png"), self.context, roi=self.roi, attempts=40, timeout=2, abort_check=check_timeout):
-            return False
-            
-        # 3. login.png
-        print("[RecoveryManager] Aguardando botao de login...")
-        if not find_and_click_with_retry_fn("Login", self._path("login.png"), self.context, roi=self.roi, attempts=40, timeout=2, abort_check=check_timeout):
-            return False
-
-        # 4. server.png
-        print("[RecoveryManager] Aguardando tela de servidores...")
-        if not find_and_click_with_retry_fn("Server", self._path("server.png"), self.context, roi=self.roi, attempts=40, timeout=2, abort_check=check_timeout):
-            return False
-
-        # 5. Esperar personagem no jogo
-        print("[RecoveryManager] Aguardando carregamento da sala (procurando mapa)...")
-        if not find_and_click_with_retry_fn("Map", self._path("map.png"), self.context, roi=self.roi, attempts=60, timeout=2, abort_check=check_timeout):
-            return False
-
-        # 6. Tentar clicar no atalho do Cart Surfer diretamente (caso a aba de jogos já esteja aberta)
-        print("[RecoveryManager] Procurando atalho do Cart Surfer diretamente...")
-        cart_surfer_found = find_and_click_with_retry_fn("Map Cart Surfer", self._path("map_cart_surfer.png"), self.context, roi=self.roi, attempts=4, timeout=2, abort_check=check_timeout)
-        
-        if not cart_surfer_found:
-            # 7. Se não achou, significa que a aba está fechada. Clicar em map_games.png
-            print("[RecoveryManager] Atalho nao encontrado. Clicando na aba de jogos...")
-            if not find_and_click_with_retry_fn("Map Games", self._path("map_games.png"), self.context, roi=self.roi, attempts=15, timeout=2, abort_check=check_timeout):
+        if self.context.game_name == "journey":
+            # 2. first_login.png
+            print("[RecoveryManager] Aguardando botao first_login...")
+            if not find_and_click_with_retry_fn("First Login", self._path("first_login.png"), self.context, roi=self.roi, attempts=60, timeout=2, abort_check=check_timeout):
                 return False
                 
-            # 8. E tentar clicar no atalho do Cart Surfer novamente
-            print("[RecoveryManager] Aguardando atalho do Cart Surfer...")
-            if not find_and_click_with_retry_fn("Map Cart Surfer", self._path("map_cart_surfer.png"), self.context, roi=self.roi, attempts=15, timeout=2, abort_check=check_timeout):
+            # 3. account.png
+            print("[RecoveryManager] Aguardando tela de selecao de conta...")
+            if not find_and_click_with_retry_fn("Account", self._path("account.png"), self.context, roi=self.roi, attempts=40, timeout=2, abort_check=check_timeout):
                 return False
+                
+            # 4. login.png
+            print("[RecoveryManager] Aguardando botao de login...")
+            if not find_and_click_with_retry_fn("Login", self._path("login.png"), self.context, roi=self.roi, attempts=40, timeout=2, abort_check=check_timeout):
+                return False
+
+            # 5. server.png
+            print("[RecoveryManager] Aguardando tela de servidores...")
+            if not find_and_click_with_retry_fn("Server", self._path("server.png"), self.context, roi=self.roi, attempts=40, timeout=2, abort_check=check_timeout):
+                return False
+
+            # 6. Esperar personagem no jogo
+            print("[RecoveryManager] Aguardando carregamento da sala (procurando mapa)...")
+            if not find_and_click_with_retry_fn("Map", self._path("map.png"), self.context, roi=self.roi, attempts=60, timeout=2, abort_check=check_timeout):
+                return False
+                
+            # 7. map_shack.png
+            print("[RecoveryManager] Procurando atalho map_shack...")
+            if not find_and_click_with_retry_fn("Map Shack", self._path("map_shack.png"), self.context, roi=self.roi, attempts=20, timeout=2, abort_check=check_timeout):
+                return False
+                
+            # 8. mine.png
+            print("[RecoveryManager] Procurando entrada da mina...")
+            if not find_and_click_with_retry_fn("Mine", self._path("mine.png"), self.context, roi=self.roi, attempts=20, timeout=2, abort_check=check_timeout):
+                return False
+                
+        else:
+            # Fluxo original (e.g. newcp)
+            # 2. account.png
+            print("[RecoveryManager] Aguardando tela de selecao de conta...")
+            if not find_and_click_with_retry_fn("Account", self._path("account.png"), self.context, roi=self.roi, attempts=40, timeout=2, abort_check=check_timeout):
+                return False
+                
+            # 3. login.png
+            print("[RecoveryManager] Aguardando botao de login...")
+            if not find_and_click_with_retry_fn("Login", self._path("login.png"), self.context, roi=self.roi, attempts=40, timeout=2, abort_check=check_timeout):
+                return False
+
+            # 4. server.png
+            print("[RecoveryManager] Aguardando tela de servidores...")
+            if not find_and_click_with_retry_fn("Server", self._path("server.png"), self.context, roi=self.roi, attempts=40, timeout=2, abort_check=check_timeout):
+                return False
+
+            # 5. Esperar personagem no jogo
+            print("[RecoveryManager] Aguardando carregamento da sala (procurando mapa)...")
+            if not find_and_click_with_retry_fn("Map", self._path("map.png"), self.context, roi=self.roi, attempts=60, timeout=2, abort_check=check_timeout):
+                return False
+
+            # 6. Tentar clicar no atalho do Cart Surfer diretamente (caso a aba de jogos já esteja aberta)
+            print("[RecoveryManager] Procurando atalho do Cart Surfer diretamente...")
+            cart_surfer_found = find_and_click_with_retry_fn("Map Cart Surfer", self._path("map_cart_surfer.png"), self.context, roi=self.roi, attempts=4, timeout=2, abort_check=check_timeout)
+            
+            if not cart_surfer_found:
+                # 7. Se não achou, significa que a aba está fechada. Clicar em map_games.png
+                print("[RecoveryManager] Atalho nao encontrado. Clicando na aba de jogos...")
+                if not find_and_click_with_retry_fn("Map Games", self._path("map_games.png"), self.context, roi=self.roi, attempts=15, timeout=2, abort_check=check_timeout):
+                    return False
+                    
+                # 8. E tentar clicar no atalho do Cart Surfer novamente
+                print("[RecoveryManager] Aguardando atalho do Cart Surfer...")
+                if not find_and_click_with_retry_fn("Map Cart Surfer", self._path("map_cart_surfer.png"), self.context, roi=self.roi, attempts=15, timeout=2, abort_check=check_timeout):
+                    return False
             
         print("[RecoveryManager] Recuperacao concluida com sucesso! Voltando ao loop principal.")
         return True
