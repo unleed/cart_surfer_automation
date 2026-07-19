@@ -251,9 +251,6 @@ def run_game_loop(context, roi, visualize=False, active_check_callback=None, fra
                 res = cv2.matchTemplate(pass_search, img_close, cv2.TM_CCOEFF_NORMED)
                 min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
                 
-                if max_val > .4:
-                    game_is_ending = True
-                    
                 if max_val >= .8:
                     if context.debug: print(f"Game end detected! (Confidence: {max_val:.2f})")
                     
@@ -322,10 +319,13 @@ def run_game_loop(context, roi, visualize=False, active_check_callback=None, fra
             else:
                 diff = cv2.absdiff(gray_small, prev_gray)
                 if np.mean(diff) < 2.0:
-                    if current_time - static_start_time > 1.0:
+                    if current_time - static_start_time > 1.5:
                         game_is_ending = True
                 else:
                     static_start_time = current_time
+                    # Se voltou a ter movimento e não estamos no clarão, cancela o game_is_ending
+                    if np.std(gray_small) >= 15.0:
+                        game_is_ending = False
                 prev_gray = gray_small
 
             # =========================
