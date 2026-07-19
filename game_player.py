@@ -85,7 +85,7 @@ class TrickController:
             self._release(GameKey.SPACE)
             
             self.state = TrickState.WAIT_LOOP_FINISH
-            self.next_action_time = time.monotonic() + 1.05
+            self.next_action_time = time.monotonic() + (1.05 if context.game_name == 'newcp' else 1)
             self.next_trick = "360"
             
         elif self.next_trick == "360":
@@ -96,7 +96,7 @@ class TrickController:
             self._release(GameKey.RIGHT)
             
             self.state = TrickState.WAIT_360_FINISH
-            self.next_action_time = time.monotonic() + .7
+            self.next_action_time = time.monotonic() + (.7 if context.game_name == 'newcp' else .65)
             self.next_trick = "LOOP"
 
     def execute_turn(self, direction):
