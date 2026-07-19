@@ -31,6 +31,21 @@ print(f"Starting bot for game: {GAME}")
 bot_active = False
 
 # =========================
+# CONTEXT & INPUT SETUP
+# =========================
+from platform_input import get_input_controller
+from bot_context import BotContext
+
+# Instancia o controlador. Se estiver no Wayland, a exception será capturada aqui de forma limpa.
+try:
+    input_controller = get_input_controller()
+except RuntimeError as e:
+    print(f"\n[ERRO CRÍTICO] {e}")
+    sys.exit(1)
+    
+context = BotContext(input_controller, GAME, debug=DEBUG)
+
+# =========================
 # LOAD OR DEFINE ROI
 # =========================
 roi = load_or_create_roi(GAME)
@@ -73,7 +88,7 @@ from recovery_manager import RecoveryManager
 
 # Instances
 conn_monitor = ConnectionMonitor(roi, GAME, debug=DEBUG)
-rec_manager = RecoveryManager(roi, GAME, debug=DEBUG)
+rec_manager = RecoveryManager(context, roi)
 
 # Internal state to avoid restarting the sequence repeatedly if already running
 game_running = False
@@ -105,15 +120,15 @@ while True:
             if DEBUG: print("\nStarting automation sequence...")
             
             # Uncomment this if the main window of the game is not being clicked automatically
-            # import pyautogui
-            # pyautogui.click(roi["x"] + roi["w"] // 2, roi["y"] + roi["h"] - 10)
+            # context.input.click(roi["x"] + roi["w"] // 2, roi["y"] + roi["h"] - 10)
+            
             # time.sleep(0.2)
             
             # Callback para abortar o start sequence caso perca conexao durante os menus
             def should_abort_start():
                 return conn_monitor.state != RecoveryState.NORMAL
             
-            success = start_game_sequence(roi, GAME, debug=DEBUG, frame_inspector=conn_monitor.inspect, abort_check=should_abort_start)
+            success = start_game_sequence(roi, context, frame_inspector=conn_monitor.inspect, abort_check=should_abort_start)
             if success:
                 game_running = True
             else:
@@ -129,7 +144,7 @@ while True:
             def is_active_and_connected():
                 return bot_active and conn_monitor.state == RecoveryState.NORMAL
                 
-            run_game_loop(roi, game_name=GAME, debug=DEBUG, visualize=VISUALIZE, active_check_callback=is_active_and_connected, frame_inspector=conn_monitor.inspect)
+            run_game_loop(context, roi, visualize=VISUALIZE, active_check_callback=is_active_and_connected, frame_inspector=conn_monitor.inspect)
             
             game_running = False
             

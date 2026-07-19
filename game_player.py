@@ -1,14 +1,12 @@
 import numpy as np
 import time
-import pyautogui
 import cv2
 import os
 import mss
-from pynput.keyboard import Controller, Key
+from platform_input import GameKey
 from game_starter import find_and_click_with_retry
 import enum
 
-_kb = Controller()
 
 class TrickState(enum.Enum):
     IDLE = 1
@@ -18,8 +16,9 @@ class TrickState(enum.Enum):
     GAME_ENDING = 5
 
 class TrickController:
-    def __init__(self, debug=False):
-        self.debug = debug
+    def __init__(self, context):
+        self.debug = context.debug
+        self.input = context.input
         self.state = TrickState.IDLE
         self.next_action_time = 0
         self.next_trick = "LOOP"
@@ -39,17 +38,17 @@ class TrickController:
         self.turn_start_time = 0
         
     def _press(self, key):
-        _kb.press(key)
+        self.input.press(key)
         self.active_keys.add(key)
         
     def _release(self, key):
-        _kb.release(key)
+        self.input.release(key)
         if key in self.active_keys:
             self.active_keys.remove(key)
             
     def _release_all(self):
         for key in list(self.active_keys):
-            _kb.release(key)
+            self.input.release(key)
         self.active_keys.clear()
 
     def update(self):
@@ -80,10 +79,10 @@ class TrickController:
             
         if self.next_trick == "LOOP":
             if self.debug: print("[TRICK] LOOP")
-            self._press(Key.down)
-            self._release(Key.down)
-            self._press(Key.space)
-            self._release(Key.space)
+            self._press(GameKey.DOWN)
+            self._release(GameKey.DOWN)
+            self._press(GameKey.SPACE)
+            self._release(GameKey.SPACE)
             
             self.state = TrickState.WAIT_LOOP_FINISH
             self.next_action_time = time.monotonic() + 1.05
@@ -91,10 +90,10 @@ class TrickController:
             
         elif self.next_trick == "360":
             if self.debug: print("[TRICK] 360")
-            self._press(Key.space)
-            self._release(Key.space)
-            self._press(Key.right)
-            self._release(Key.right)
+            self._press(GameKey.SPACE)
+            self._release(GameKey.SPACE)
+            self._press(GameKey.RIGHT)
+            self._release(GameKey.RIGHT)
             
             self.state = TrickState.WAIT_360_FINISH
             self.next_action_time = time.monotonic() + .7
@@ -114,12 +113,12 @@ class TrickController:
         
         if direction == "right":
             if self.debug: print("RIGHT -> LEFT")
-            self._press(Key.down)
-            self._press(Key.left)
+            self._press(GameKey.DOWN)
+            self._press(GameKey.LEFT)
         elif direction == "left":
             if self.debug: print("LEFT -> RIGHT")
-            self._press(Key.down)
-            self._press(Key.right)
+            self._press(GameKey.DOWN)
+            self._press(GameKey.RIGHT)
             
         self.state = TrickState.TURNING
         self.next_action_time = time.monotonic() + TURN_TIME
@@ -132,7 +131,7 @@ class TrickController:
         self._release_all()
         self.state = TrickState.GAME_ENDING
 
-def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_check_callback=None, frame_inspector=None):
+def run_game_loop(context, roi, visualize=False, active_check_callback=None, frame_inspector=None):
     """
     Main loop for Cart Surfer automation.
     
@@ -149,22 +148,22 @@ def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_c
     # CONFIGURATIONS
     # =========================
     
-    allcolors = [[35, 35, 35]] if game_name == 'newcp' else [[0, 0, 0]]
+    allcolors = [[35, 35, 35]] if context.game_name == 'newcp' else [[0, 0, 0]]
     bgr_target_color = np.array(allcolors[0], dtype=np.uint8)
 
     sign_count = 0
     last_sign_visible = False
     last_sign_time = time.time()
     last_x_pos = None
-    trick_controller = TrickController(debug=debug)
+    trick_controller = TrickController(context)
 
     RESET_TIMEOUT = 3.5
     
     # 'close.png' configuration
-    path_close = os.path.join(os.path.dirname(__file__), "images", game_name, "close.png")
+    path_close = os.path.join(os.path.dirname(__file__), "images", context.game_name, "close.png")
     img_close = cv2.imread(path_close)
     if img_close is None:
-        if debug: print(f"[WARNING] Image close.png not found at: {path_close}")
+        if context.debug: print(f"[WARNING] Image close.png not found at: {path_close}")
         
     last_check_close = time.time()
     CHECK_CLOSE_INTERVAL = .5  # Check every 0.5s to detect end of game quickly
@@ -176,7 +175,7 @@ def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_c
     prev_gray = None
     static_start_time = time.time()
 
-    if debug: print("Starting game loop...")
+    if context.debug: print("Starting game loop...")
 
     # =========================
     # PRE-CALCULATIONS (Dica 4)
@@ -212,7 +211,7 @@ def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_c
             
             # Allow external code to stop the loop gracefully
             if active_check_callback and not active_check_callback():
-                if debug: print("\nBot disabled. Exiting game loop...")
+                if context.debug: print("\nBot disabled. Exiting game loop...")
                 trick_controller.full_reset()
                 break
 
@@ -238,7 +237,7 @@ def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_c
                 
                 if not close_detection_active:
                     close_detection_active = True
-                    if debug: print("[INFO] close.png detection activated. Stopping sign detection.")
+                    if context.debug: print("[INFO] close.png detection activated. Stopping sign detection.")
                 
                 h_f, w_f = frame_roi.shape[:2]
                 
@@ -256,20 +255,20 @@ def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_c
                     game_is_ending = True
                     
                 if max_val >= .8:
-                    if debug: print(f"Game end detected! (Confidence: {max_val:.2f})")
+                    if context.debug: print(f"Game end detected! (Confidence: {max_val:.2f})")
                     
                     h_close, w_close = img_close.shape[:2]
                     # Compensating X pos because we cut 1/4 left and we are inside the ROI bounds
                     cx = x + max_loc[0] + w_close // 2 + int(w_f/4)
                     cy = y + max_loc[1] + h_close // 2
                     
-                    pyautogui.click(cx, cy)
+                    context.input.click(cx, cy)
                     trick_controller.set_game_ending()
 
-                    if game_name == 'newcp':
+                    if context.game_name == 'newcp':
                         base_path = os.path.join(os.path.dirname(__file__), "images", game_name)
                         img_shack = os.path.join(base_path, "shack.png")
-                        find_and_click_with_retry("Shack", img_shack, roi=roi, debug=debug)
+                        find_and_click_with_retry("Shack", img_shack, context, roi=roi)
                         time.sleep(4.0)
                         return
                     
@@ -363,7 +362,7 @@ def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_c
                         cv2.moveWindow("Sign Detection", sec_mon["left"] + 50, sec_mon["top"] + 50)
                         
                     # Click on the game window to restore focus after OpenCV window steals it
-                    pyautogui.click(roi["x"] + roi["w"] // 2, roi["y"] + roi["h"] // 2)
+                    context.input.click(roi["x"] + roi["w"] // 2, roi["y"] + roi["h"] // 2)
                     first_vis = False
                     
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -384,7 +383,7 @@ def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_c
                 if current_time - last_sign_time > .1:
                     sign_count += 1
                     last_sign_time = current_time
-                    if debug:
+                    if context.debug:
                         status_txt = "NONE"
                         if detected_left: status_txt = "LEFT"
                         if detected_right: status_txt = "RIGHT"
@@ -394,7 +393,7 @@ def run_game_loop(roi, game_name="newcp", debug=False, visualize=False, active_c
 
             if time.time() - last_sign_time > RESET_TIMEOUT:
                 if sign_count != 0:
-                    if debug:
+                    if context.debug:
                         print("Resetting counter")
                 sign_count = 0
                 last_x_pos = None
