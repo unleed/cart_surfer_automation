@@ -62,7 +62,8 @@ def select_roi(game_name):
     # capture full screen
     with mss.mss() as sct:
         # monitors[0] captures all combined monitors
-        sct_img = sct.grab(sct.monitors[0])
+        monitor0 = sct.monitors[0]
+        sct_img = sct.grab(monitor0)
         frame = np.array(sct_img)
         # mss returns BGRA, convert to BGR for OpenCV
         if frame.shape[2] == 4:
@@ -75,12 +76,19 @@ def select_roi(game_name):
     
     if auto_roi:
         x, y, w, h = auto_roi
+        # Shift relative coordinates to absolute virtual desktop coordinates
+        x += monitor0["left"]
+        y += monitor0["top"]
         print(f"Game area automatically detected at: X:{x} Y:{y} W:{w} H:{h}")
-        roi = auto_roi
+        roi = (x, y, w, h)
                 
     if roi is None:
         print("Auto-detection failed. Falling back to manual selection...")
-        roi = manual_select_roi(frame, game_name)
+        x, y, w, h = manual_select_roi(frame, game_name)
+        if w != 0 and h != 0:
+            x += monitor0["left"]
+            y += monitor0["top"]
+        roi = (x, y, w, h)
 
     x, y, w, h = roi
 
